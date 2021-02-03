@@ -6,6 +6,6 @@ spring:
     password: admin
   batch:
     initialize-schema: always
-    job:
-      enabled: false
-      #names: firstJob
+  jpa:
+    hibernate:
+      ddl-auto: create
