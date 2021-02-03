@@ -20,6 +20,15 @@ public class SimpleTask implements Tasklet {
         /*var parameters = chunkContext.getStepContext().getJobParameters();
         log.info("Found parameter fileName: " + parameters.get("fileName"));*/
         log.info("Found parameter fileName: " + fileName);
+
+        var jobContext = chunkContext.getStepContext()
+                .getStepExecution()
+                .getJobExecution()
+                .getExecutionContext();
+        jobContext.put("lastCounterValue", counter);
+
+        // chunkContext.getStepContext().getJobExecutionContext(); only copy - changes are not persisted
+
         log.info("Execution no. " + counter);
         return counter++ < 3 ? RepeatStatus.CONTINUABLE : RepeatStatus.FINISHED;
     }
