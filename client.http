@@ -1,0 +1,10 @@
+POST http://localhost:8080/jobs
+Content-Type: application/json
+
+{
+"name": "firstJob",
+  "properties": {
+    "fileName": "test.txt"
+  }
+
+}

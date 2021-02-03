@@ -9,6 +9,7 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.job.CompositeJobParametersValidator;
 import org.springframework.batch.core.job.DefaultJobParametersValidator;
 import org.springframework.batch.core.job.builder.FlowBuilder;
@@ -163,10 +164,11 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public Step fourthStep(Flow processingFlow) {
+    public Step fourthStep(Flow processingFlow, JobExplorer jobExplorer) {
         return stepBuilderFactory.get("fourthStep")
                 //.job(custom_custom)
-                .flow(processingFlow)
+                .tasklet(new JobStatusExplorer(jobExplorer))
+                //.flow(processingFlow)
                 .build();
     }
 
