@@ -55,7 +55,7 @@ public class BatchConfiguration {
 
     @Bean
     public Job job(Step firstStep) {
-        return jobBuilderFactory.get("job3")
+        return jobBuilderFactory.get("firstJob")
                 .validator(validators())
                 //.incrementer(new RunIdIncrementer())
                 .incrementer(new ExecutionDateIncrementer())
