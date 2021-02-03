@@ -6,7 +6,9 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.data.RepositoryItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
@@ -30,7 +32,7 @@ public class BatchConfiguration {
 
     @StepScope
     @Bean
-    public ItemReader<Transaction> transactionsFileReader(@Value("#{jobParameters['transactionsFilePath']}") FileUrlResource transactionsFilePath) {
+    public ItemStreamReader<Transaction> transactionsFileReader(@Value("#{jobParameters['transactionsFilePath']}") FileUrlResource transactionsFilePath) {
         var transactionMapper = new TransactionMapper();
         return new FlatFileItemReaderBuilder<Transaction>().name("transactionsFileReader")
                 .delimited()
@@ -59,7 +61,8 @@ public class BatchConfiguration {
 
     @Bean
     public Job processAccounts(Step importTransactions) {
-        return jobBuilderFactory.get("processAccounts")
+        return jobBuilderFactory.get("process")
+                .incrementer(new RunIdIncrementer())
                 .start(importTransactions)
                 .build();
     }
