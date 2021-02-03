@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface TransactionsRepository extends JpaRepository<Transaction, Long> {
 
-    Transaction findByNumber(String number);
+    List<Transaction> findByNumber(String accountNumber);
 
     @Query("select t from Transaction t where t.amount > :amount")
     List<Transaction> getAllBigTransaction(@Param("amount") BigDecimal amount);
