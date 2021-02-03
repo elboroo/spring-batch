@@ -27,7 +27,7 @@ public class BatchConfiguration {
 
     @Bean
     public Job job() {
-        return jobBuilderFactory.get("job")
+        return jobBuilderFactory.get("firstJob")
                 .start(firstStep())
                 .build();
     }
