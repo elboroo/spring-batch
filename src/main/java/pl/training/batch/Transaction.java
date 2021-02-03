@@ -4,6 +4,7 @@ import lombok.Data;
 
 import javax.persistence.*;
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.Objects;
 
 @Table(name = "transactions")
@@ -16,6 +17,7 @@ public class Transaction {
     private Long id;
     @Column(name = "account_number")
     private String number;
+    private Date timestamp;
     private BigDecimal amount;
 
     @Override
