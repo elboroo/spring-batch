@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/training
+    driver-class-name: org.postgresql.Driver
+    username: admin
+    password: admin
+  batch:
+    initialize-schema: always
