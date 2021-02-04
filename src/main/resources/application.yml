@@ -6,6 +6,6 @@ spring:
     password: admin
   batch:
     initialize-schema: always
-#  jpa:
-#    hibernate:
-#      ddl-auto: create
+  jpa:
+    hibernate:
+      ddl-auto: create

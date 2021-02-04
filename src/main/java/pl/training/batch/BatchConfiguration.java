@@ -12,7 +12,6 @@ import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.data.RepositoryItemWriter;
 import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
-import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
@@ -28,18 +27,18 @@ import org.springframework.batch.item.file.mapping.PatternMatchingCompositeLineM
 import org.springframework.batch.item.file.transform.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileUrlResource;
 
+import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import static pl.training.batch.TransactionMapper.*;
-
+@EnableCaching
 @EnableBatchProcessing
 @Configuration
 public class BatchConfiguration {
@@ -48,6 +47,8 @@ public class BatchConfiguration {
     private StepBuilderFactory stepBuilderFactory;
     @Autowired
     private JobBuilderFactory jobBuilderFactory;
+    @Autowired
+    private CustomerNamesRepository customerNamesRepository;
 
    /* @StepScope
     @Bean
@@ -220,8 +221,8 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public CustomerWithTransactionsFileReader customerWithTransactionsFileReader(MultiResourceItemReader multiResourceItemReader) {
-        return new CustomerWithTransactionsFileReader(multiResourceItemReader);
+    public CustomerWithTransactionsFileReader customerWithTransactionsFileReader(MultiResourceItemReader multiResourceItemReader, NamesService namesService) {
+        return new CustomerWithTransactionsFileReader(multiResourceItemReader, namesService);
     }
 
     @Bean
@@ -242,6 +243,12 @@ public class BatchConfiguration {
         //        .next(generateSummary)
                 .start(importCustomers)
                 .build();
+    }
+
+    @PostConstruct
+    public void init() {
+        customerNamesRepository.save(new CustomerName("Jan"));
+        customerNamesRepository.save(new CustomerName("Iga"));
     }
 
 }
