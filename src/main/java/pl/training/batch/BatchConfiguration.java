@@ -15,14 +15,12 @@ import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourc
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
 import org.springframework.batch.item.file.mapping.PassThroughFieldSetMapper;
-import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
-import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
-import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.batch.item.file.transform.FieldSet;
+import org.springframework.batch.item.file.transform.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +28,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileUrlResource;
 
 import javax.sql.DataSource;
+
+import java.util.List;
 
 import static pl.training.batch.TransactionMapper.*;
 
@@ -80,10 +80,11 @@ public class BatchConfiguration {
     @Bean
     public Step importTransactions(SafeTransactionReader safeTransactionReader /*ItemReader<Transaction> transactionsFileReader*/, ItemWriter<Transaction> transactionsDatabaseWriter) {
         return stepBuilderFactory.get("importTransactions")
-                .<Transaction, Transaction>chunk(5)
+                .<Transaction, Transaction>chunk(1)
                 .reader(safeTransactionReader)
                 .writer(transactionsDatabaseWriter)
                 .faultTolerant()
+                .startLimit(3)
                 .build();
     }
 
@@ -143,13 +144,40 @@ public class BatchConfiguration {
                 .build();
     }
 
+    @StepScope
     @Bean
-    public Job processAccounts(Step importTransactions, Step applyTransactions, Step generateSummary) {
-        return jobBuilderFactory.get("process")
+    public FlatFileItemReader<Customer> customersFileReader(@Value("#{jobParameters['customersFilePath']}") FileUrlResource customersFile) {
+        return new FlatFileItemReaderBuilder<Customer>().name("customersFileReader")
+                .resource(customersFile)
+                .fixedLength()
+                .columns(new Range[] { new Range(1, 5), new Range(6, 15), new Range(16) })
+                .names("firstName", "lastName", "address")
+                .targetType(Customer.class)
+                .build();
+    }
+
+    @Bean
+    public ItemWriter<Customer> customerConsoleWriter() {
+        return list -> list.forEach(System.out::println);
+    }
+
+    @Bean
+    public Step importCustomers(FlatFileItemReader<Customer> customersFileReader, ItemWriter<Customer> customerConsoleWriter) {
+        return stepBuilderFactory.get("importCustomers")
+                .<Customer, Customer>chunk(100)
+                .reader(customersFileReader)
+                .writer(customerConsoleWriter)
+                .build();
+    }
+
+    @Bean
+    public Job processAccounts(Step importTransactions, Step applyTransactions, Step generateSummary, Step importCustomers) {
+        return jobBuilderFactory.get("processData3")
                 .incrementer(new RunIdIncrementer())
-                .start(importTransactions)
-                .next(applyTransactions)
-                .next(generateSummary)
+        //        .start(importTransactions)
+        //        .next(applyTransactions)
+        //        .next(generateSummary)
+                .start(importCustomers)
                 .build();
     }
 

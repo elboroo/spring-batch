@@ -2,6 +2,8 @@ package pl.training.batch;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.annotation.BeforeStep;
 import org.springframework.batch.item.*;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.transform.FieldSet;
@@ -14,11 +16,14 @@ public class SafeTransactionReader implements ItemStreamReader<Transaction> {
     private final ItemStreamReader<FieldSet> streamReader;
     private final TransactionMapper transactionMapper = new TransactionMapper();
 
-    private int expectedRowsCount;
-    private int counter;
+    private StepExecution stepExecution;
+    private int counter; // should be updated after restart
 
     @Override
     public Transaction read() throws Exception {
+        /*if (counter > 2) {
+            throw  new RuntimeException();
+        }*/
         Transaction transaction = null;
         var fieldSet = streamReader.read();
         if (fieldSet != null) {
@@ -26,11 +31,17 @@ public class SafeTransactionReader implements ItemStreamReader<Transaction> {
                 transaction = transactionMapper.mapFieldSetByIndex(fieldSet);
                 counter++;
             } else {
-                expectedRowsCount = fieldSet.readInt(0);
-                log.info("## " + expectedRowsCount);
+                if (counter != fieldSet.readInt(0)) {
+                    stepExecution.setTerminateOnly();
+                }
             }
         }
         return transaction;
+    }
+
+    @BeforeStep
+    public void beforeStep(StepExecution stepExecution) {
+        this.stepExecution = stepExecution;
     }
 
     @Override
