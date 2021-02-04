@@ -19,7 +19,10 @@ import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
+import org.springframework.batch.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.item.file.mapping.PassThroughFieldSetMapper;
+import org.springframework.batch.item.file.mapping.PatternMatchingCompositeLineMapper;
 import org.springframework.batch.item.file.transform.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +32,9 @@ import org.springframework.core.io.FileUrlResource;
 
 import javax.sql.DataSource;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static pl.training.batch.TransactionMapper.*;
 
@@ -162,11 +167,54 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public Step importCustomers(FlatFileItemReader<Customer> customersFileReader, ItemWriter<Customer> customerConsoleWriter) {
+    public Step importCustomers(FlatFileItemReader<Customer> customersCompositeFileReader /*FlatFileItemReader<Customer> customersFileReader*/, ItemWriter<Customer> customerConsoleWriter) {
         return stepBuilderFactory.get("importCustomers")
                 .<Customer, Customer>chunk(100)
-                .reader(customersFileReader)
+                .reader(customersCompositeFileReader)
                 .writer(customerConsoleWriter)
+                .build();
+    }
+
+    @Bean
+    public DelimitedLineTokenizer customerTokenizer() {
+        var tokenizer = new DelimitedLineTokenizer();
+        tokenizer.setNames("prefix","firstName", "lastName", "address");
+        tokenizer.setIncludedFields(1, 2, 3);
+        return tokenizer;
+    }
+
+    @Bean
+    public DelimitedLineTokenizer transactionTokenizer() {
+        var tokenizer = new DelimitedLineTokenizer();
+        tokenizer.setNames("prefix","accountNumber", "timestamp", "amount");
+     //   tokenizer.setIncludedFields(1, 2, 3);
+        return tokenizer;
+    }
+
+    @Bean
+    public PatternMatchingCompositeLineMapper lineMapper() {
+        var lineTokenizers = new HashMap<String, LineTokenizer>();
+        lineTokenizers.put("c*", customerTokenizer());
+    //    lineTokenizers.put("t*", transactionTokenizer());
+
+        Map<String, FieldSetMapper> mappers = new HashMap<>();
+        var customerMapper = new BeanWrapperFieldSetMapper<Customer>();
+        customerMapper.setTargetType(Customer.class);
+        mappers.put("c*", customerMapper);
+     //   mappers.put("t*", new TransactionMapper());
+
+        PatternMatchingCompositeLineMapper patterMatchingMapper = new PatternMatchingCompositeLineMapper();
+        patterMatchingMapper.setTokenizers(lineTokenizers);
+        patterMatchingMapper.setFieldSetMappers(mappers);
+        return patterMatchingMapper;
+    }
+
+    @StepScope
+    @Bean
+    public FlatFileItemReader<Customer> customersCompositeFileReader(@Value("#{jobParameters['customersFilePath']}") FileUrlResource customersFile) {
+        return new FlatFileItemReaderBuilder<Customer>().name("customersCompositeFileReader")
+                .resource(customersFile)
+                .lineMapper(lineMapper())
                 .build();
     }
 
