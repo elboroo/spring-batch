@@ -12,13 +12,13 @@ public class CustomerWithTransactionsFileReader implements ItemStreamReader<Cust
 
     @Override
     public Customer read() throws Exception {
-        Object record = null;
         Customer customer = null;
         if (lastRecord == null) {
-            record = delegate.read();
+            lastRecord = delegate.read();
         }
-        if (record instanceof Customer) {
-            customer = (Customer) record;
+        if (lastRecord instanceof Customer) {
+            customer = (Customer) lastRecord;
+            lastRecord = null;
             while (readNext() instanceof Transaction) {
                 customer.addTransaction((Transaction) lastRecord);
                 lastRecord = null;
