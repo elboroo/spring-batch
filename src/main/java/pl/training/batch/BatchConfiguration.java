@@ -25,6 +25,7 @@ import org.springframework.batch.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.item.file.mapping.PassThroughFieldSetMapper;
 import org.springframework.batch.item.file.mapping.PatternMatchingCompositeLineMapper;
 import org.springframework.batch.item.file.transform.*;
+import org.springframework.batch.item.validator.BeanValidatingItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.EnableCaching;
@@ -221,15 +222,22 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public CustomerWithTransactionsFileReader customerWithTransactionsFileReader(MultiResourceItemReader multiResourceItemReader, NamesService namesService) {
-        return new CustomerWithTransactionsFileReader(multiResourceItemReader, namesService);
+    public CustomerWithTransactionsFileReader customerWithTransactionsFileReader(MultiResourceItemReader multiResourceItemReader) {
+        return new CustomerWithTransactionsFileReader(multiResourceItemReader);
     }
 
     @Bean
-    public Step importCustomers(CustomerWithTransactionsFileReader customerWithTransactionsFileReader /*MultiResourceItemReader multiResourceItemReader*/ /*FlatFileItemReader<Customer> customersCompositeFileReader*/ /*FlatFileItemReader<Customer> customersFileReader*/, ItemWriter<Object> customerConsoleWriter) {
+    public BeanValidatingItemProcessor<Customer> customerBeanValidatingItemProcessor() {
+        return new BeanValidatingItemProcessor<>();
+    }
+
+    @Bean
+    public Step importCustomers(CustomerWithTransactionsFileReader customerWithTransactionsFileReader /*MultiResourceItemReader multiResourceItemReader*/ /*FlatFileItemReader<Customer> customersCompositeFileReader*/ /*FlatFileItemReader<Customer> customersFileReader*/,
+                                ItemWriter<Object> customerConsoleWriter) {
         return stepBuilderFactory.get("importCustomers")
                 .<Customer, Customer>chunk(100)
                 .reader(customerWithTransactionsFileReader)
+                .processor(customerBeanValidatingItemProcessor())
                 .writer(customerConsoleWriter)
                 .build();
     }

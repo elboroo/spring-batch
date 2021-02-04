@@ -7,7 +7,6 @@ import org.springframework.batch.item.*;
 public class CustomerWithTransactionsFileReader implements ItemStreamReader<Customer> {
 
     private final ItemStreamReader<Object> delegate;
-    private final NamesService namesService;
 
     private Object lastRecord = null;
 
@@ -19,7 +18,6 @@ public class CustomerWithTransactionsFileReader implements ItemStreamReader<Cust
         }
         if (lastRecord instanceof Customer) {
             customer = (Customer) lastRecord;
-            System.out.println("Has name " + customer.getFirstName() + " " + namesService.hasName(customer.getFirstName()));
             lastRecord = null;
             while (readNext() instanceof Transaction) {
                 customer.addTransaction((Transaction) lastRecord);
