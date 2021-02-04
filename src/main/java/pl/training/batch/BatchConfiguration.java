@@ -169,15 +169,6 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public Step importCustomers(MultiResourceItemReader multiResourceItemReader /*FlatFileItemReader<Customer> customersCompositeFileReader*/ /*FlatFileItemReader<Customer> customersFileReader*/, ItemWriter<Object> customerConsoleWriter) {
-        return stepBuilderFactory.get("importCustomers")
-                .<Customer, Customer>chunk(100)
-                .reader(multiResourceItemReader)
-                .writer(customerConsoleWriter)
-                .build();
-    }
-
-    @Bean
     public DelimitedLineTokenizer customerTokenizer() {
         var tokenizer = new DelimitedLineTokenizer();
         tokenizer.setNames("prefix","firstName", "lastName", "address");
@@ -225,6 +216,20 @@ public class BatchConfiguration {
         return new MultiResourceItemReaderBuilder().name("multiResourceItemReader")
                 .resources(customersFiles)
                 .delegate(customersCompositeFileReader)
+                .build();
+    }
+
+    @Bean
+    public CustomerWithTransactionsFileReader customerWithTransactionsFileReader(MultiResourceItemReader multiResourceItemReader) {
+        return new CustomerWithTransactionsFileReader(multiResourceItemReader);
+    }
+
+    @Bean
+    public Step importCustomers(CustomerWithTransactionsFileReader customerWithTransactionsFileReader /*MultiResourceItemReader multiResourceItemReader*/ /*FlatFileItemReader<Customer> customersCompositeFileReader*/ /*FlatFileItemReader<Customer> customersFileReader*/, ItemWriter<Object> customerConsoleWriter) {
+        return stepBuilderFactory.get("importCustomers")
+                .<Customer, Customer>chunk(100)
+                .reader(customerWithTransactionsFileReader)
+                .writer(customerConsoleWriter)
                 .build();
     }
 
