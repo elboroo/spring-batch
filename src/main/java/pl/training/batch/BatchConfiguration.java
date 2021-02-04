@@ -15,7 +15,14 @@ import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourc
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.batch.item.file.mapping.PassThroughFieldSetMapper;
+import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
+import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
+import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
+import org.springframework.batch.item.file.transform.FieldSet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -35,16 +42,31 @@ public class BatchConfiguration {
     @Autowired
     private JobBuilderFactory jobBuilderFactory;
 
-    @StepScope
+   /* @StepScope
     @Bean
     public ItemStreamReader<Transaction> transactionsFileReader(@Value("#{jobParameters['transactionsFilePath']}") FileUrlResource transactionsFilePath) {
-        var transactionMapper = new TransactionMapper();
         return new FlatFileItemReaderBuilder<Transaction>().name("transactionsFileReader")
                 .delimited()
                 .names(ACCOUNT_NUMBER, TIMESTAMP, AMOUNT)
-                .fieldSetMapper(transactionMapper::mapFieldSet)
+                .fieldSetMapper(new TransactionMapper())
                 .resource(transactionsFilePath)
                 .build();
+    }*/
+
+    @StepScope
+    @Bean
+    public ItemStreamReader<FieldSet> transactionsFileReader(@Value("#{jobParameters['transactionsFilePath']}") FileUrlResource transactionsFilePath) {
+        return new FlatFileItemReaderBuilder<FieldSet>().name("transactionsFileReader")
+                .lineTokenizer(new DelimitedLineTokenizer())
+                .fieldSetMapper(new PassThroughFieldSetMapper())
+                .resource(transactionsFilePath)
+                .build();
+    }
+
+    @StepScope
+    @Bean
+    public SafeTransactionReader safeTransactionReader(ItemStreamReader<FieldSet> transactionsFileReader){
+        return new SafeTransactionReader(transactionsFileReader);
     }
 
     @StepScope
@@ -56,21 +78,21 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public Step importTransactions(ItemReader<Transaction> transactionsFileReader, ItemWriter<Transaction> transactionsDatabaseWriter) {
+    public Step importTransactions(SafeTransactionReader safeTransactionReader /*ItemReader<Transaction> transactionsFileReader*/, ItemWriter<Transaction> transactionsDatabaseWriter) {
         return stepBuilderFactory.get("importTransactions")
                 .<Transaction, Transaction>chunk(5)
-                .reader(transactionsFileReader)
+                .reader(safeTransactionReader)
                 .writer(transactionsDatabaseWriter)
+                .faultTolerant()
                 .build();
     }
 
     @Bean
     public ItemReader<Account> accountsDatabaseReader(DataSource dataSource) {
-        var accountMapper = new AccountMapper();
         return new JdbcCursorItemReaderBuilder<Account>().name("accountsDatabaseReader")
                 .dataSource(dataSource)
                 .sql("select * from accounts order by account_number")
-                .rowMapper(accountMapper::mapRow)
+                .rowMapper(new AccountMapper())
                 .build();
     }
 
@@ -98,12 +120,36 @@ public class BatchConfiguration {
                 .build();
     }
 
+    @StepScope
     @Bean
-    public Job processAccounts(Step importTransactions, Step applyTransactions) {
+    public FlatFileItemWriter<Account> accountsFileWriter(@Value("#{jobParameters['summaryFilePath']}") FileUrlResource summaryFile) {
+        var lineAggregator = new DelimitedLineAggregator<Account>();
+        var fieldExtractor = new BeanWrapperFieldExtractor<Account>();
+        fieldExtractor.setNames(new String[]{ "number", "balance" });
+        fieldExtractor.afterPropertiesSet();
+        lineAggregator.setFieldExtractor(fieldExtractor);
+        return new FlatFileItemWriterBuilder<Account>().name("accountsFileWriter")
+                .resource(summaryFile)
+                .lineAggregator(lineAggregator)
+                .build();
+    }
+
+    @Bean
+    public Step generateSummary(ItemReader<Account> accountsDatabaseReader, ItemWriter<Account> accountsFileWriter) {
+        return stepBuilderFactory.get("generateSummary")
+                .<Account, Account>chunk(100)
+                .reader(accountsDatabaseReader)
+                .writer(accountsFileWriter)
+                .build();
+    }
+
+    @Bean
+    public Job processAccounts(Step importTransactions, Step applyTransactions, Step generateSummary) {
         return jobBuilderFactory.get("process")
                 .incrementer(new RunIdIncrementer())
                 .start(importTransactions)
                 .next(applyTransactions)
+                .next(generateSummary)
                 .build();
     }
 
