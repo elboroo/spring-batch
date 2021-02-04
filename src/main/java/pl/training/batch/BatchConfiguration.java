@@ -17,8 +17,10 @@ import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilde
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.FlatFileItemWriter;
+import org.springframework.batch.item.file.MultiResourceItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.batch.item.file.builder.MultiResourceItemReaderBuilder;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.FieldSetMapper;
 import org.springframework.batch.item.file.mapping.PassThroughFieldSetMapper;
@@ -162,15 +164,15 @@ public class BatchConfiguration {
     }
 
     @Bean
-    public ItemWriter<Customer> customerConsoleWriter() {
+    public ItemWriter<Object> customerConsoleWriter() {
         return list -> list.forEach(System.out::println);
     }
 
     @Bean
-    public Step importCustomers(FlatFileItemReader<Customer> customersCompositeFileReader /*FlatFileItemReader<Customer> customersFileReader*/, ItemWriter<Customer> customerConsoleWriter) {
+    public Step importCustomers(MultiResourceItemReader multiResourceItemReader /*FlatFileItemReader<Customer> customersCompositeFileReader*/ /*FlatFileItemReader<Customer> customersFileReader*/, ItemWriter<Object> customerConsoleWriter) {
         return stepBuilderFactory.get("importCustomers")
                 .<Customer, Customer>chunk(100)
-                .reader(customersCompositeFileReader)
+                .reader(multiResourceItemReader)
                 .writer(customerConsoleWriter)
                 .build();
     }
@@ -214,6 +216,15 @@ public class BatchConfiguration {
         return new FlatFileItemReaderBuilder<Customer>().name("customersCompositeFileReader")
                 .resource(customersFile)
                 .lineMapper(lineMapper())
+                .build();
+    }
+
+    @StepScope
+    @Bean
+    public MultiResourceItemReader multiResourceItemReader(@Value("#{jobParameters['customersFilesPaths']}") FileUrlResource[] customersFiles, FlatFileItemReader<Customer> customersCompositeFileReader) {
+        return new MultiResourceItemReaderBuilder().name("multiResourceItemReader")
+                .resources(customersFiles)
+                .delegate(customersCompositeFileReader)
                 .build();
     }
 
