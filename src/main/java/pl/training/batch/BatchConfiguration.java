@@ -246,10 +246,10 @@ public class BatchConfiguration {
     public Job processAccounts(Step importTransactions, Step applyTransactions, Step generateSummary, Step importCustomers) {
         return jobBuilderFactory.get("processData3")
                 .incrementer(new RunIdIncrementer())
-        //        .start(importTransactions)
+                .start(importTransactions)
         //        .next(applyTransactions)
         //        .next(generateSummary)
-                .start(importCustomers)
+                .next(importCustomers)
                 .build();
     }
 

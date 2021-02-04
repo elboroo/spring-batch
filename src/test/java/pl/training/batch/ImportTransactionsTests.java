@@ -1,25 +1,44 @@
 package pl.training.batch;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.batch.core.JobExecution;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.test.JobLauncherTestUtils;
 import org.springframework.batch.test.context.SpringBatchTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.Date;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBatchTest
-@RunWith(SpringRunner.class)
-@ContextConfiguration(classes = BatchApplication.class)
-public class ImportTransactionsTests {
+@ExtendWith(SpringExtension.class)
+@SpringBootTest(classes = BatchApplication.class)
+class ImportTransactionsTests {
 
     @Autowired
     private JobLauncherTestUtils jobLauncherTestUtils;
+    @Autowired
+    private TransactionsRepository transactionsRepository;
 
     @Test
-    public void shouldImportTransactions() {
-        JobExecution jobExecution = jobLauncherTestUtils.launchStep("importTransactions");
+    void shouldImportTransactions() throws Exception {
+        var parameters = new JobParametersBuilder()
+                .addString("transactionsFilePath", "/Users/lukas/Desktop/batch/src/main/resources/transactions.csv")
+                .addDate("timestamp", new Date())
+                .toJobParameters();
+        var jobExecution = jobLauncherTestUtils.launchStep("importTransactions", parameters);
+        assertEquals("COMPLETED", jobExecution.getExitStatus().getExitCode());
+        assertEquals(4, transactionsRepository.count());
+    }
+
+    @AfterEach
+    void clean() {
+        transactionsRepository.deleteAll();
     }
 
 }
