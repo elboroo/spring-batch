@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 public class Account {
 
     private String number;
-    private BigDecimal balance;
+    private BigDecimal balance = BigDecimal.ZERO;
 
     public void changeBalanceBy(BigDecimal amount) {
         balance = balance.add(amount);

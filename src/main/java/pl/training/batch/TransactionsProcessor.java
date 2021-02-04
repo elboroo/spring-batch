@@ -10,8 +10,11 @@ public class TransactionsProcessor implements ItemProcessor<Account, Account> {
 
     @Override
     public Account process(Account account) {
-        transactionsRepository.findByNumber(account.getNumber())
-                .forEach(transaction -> account.changeBalanceBy(transaction.getAmount()));
+        var transactions = transactionsRepository.findByNumber(account.getNumber());
+        if (transactions.isEmpty()) {
+            throw new IllegalStateException();
+        }
+        transactions.forEach(transaction -> account.changeBalanceBy(transaction.getAmount()));
         return account;
     }
 

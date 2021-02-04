@@ -18,7 +18,7 @@ public class Transaction {
     @Column(name = "account_number")
     private String number;
     private Date timestamp;
-    private BigDecimal amount;
+    private BigDecimal amount = BigDecimal.ZERO;
 
     @Override
     public boolean equals(Object otherObject) {
