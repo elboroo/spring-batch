@@ -18,3 +18,10 @@ services:
     environment:
       - PGADMIN_DEFAULT_EMAIL=training@sages.pl
       - PGADMIN_DEFAULT_PASSWORD=123
+  batch:
+    image: landrzejewski/batch
+    ports:
+      - 7000:9000
+    environment:
+      - SERVER_PORT=9000
+      - DATABASE_URL=jdbc:postgresql://database:5432/training

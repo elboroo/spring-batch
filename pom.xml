@@ -20,6 +20,7 @@
     </properties>
 
     <build>
+        <finalName>batch</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
