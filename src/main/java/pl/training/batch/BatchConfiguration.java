@@ -19,6 +19,9 @@ import org.springframework.batch.core.listener.ExecutionContextPromotionListener
 import org.springframework.batch.core.step.tasklet.CallableTaskletAdapter;
 import org.springframework.batch.core.step.tasklet.MethodInvokingTaskletAdapter;
 import org.springframework.batch.core.step.tasklet.SystemCommandTasklet;
+import org.springframework.batch.integration.async.AsyncItemProcessor;
+import org.springframework.batch.integration.async.AsyncItemWriter;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
@@ -32,11 +35,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.concurrent.ConcurrentTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Log
 @EnableScheduling
@@ -49,69 +58,12 @@ public class BatchConfiguration {
     @Autowired
     private JobBuilderFactory jobBuilderFactory;
 
-    @StepScope
-    @Bean
-    public SimpleTask simpleTask(@Value("#{jobParameters['fileName']}") String fileName) {
-        return new SimpleTask(fileName);
-    }
-
-    @Bean
-    public StepExecutionListener promotionListener() {
-        var listener = new ExecutionContextPromotionListener();
-        listener.setKeys(new String[] {"counter"});
-        return listener;
-    }
-
-    @Bean
-    public Step firstStep(SimpleTask simpleTask) {
-        return stepBuilderFactory.get("firstStep")
-                .tasklet(simpleTask)
-                .listener(promotionListener())
-                .build();
-    }
-
-    @Bean
-    public MethodInvokingTaskletAdapter methodInvokingTaskletAdapter(AccountService accountService) {
-        var adapter = new MethodInvokingTaskletAdapter();
-        adapter.setTargetObject(accountService);
-        adapter.setTargetMethod("incrementBalance");
-        adapter.setArguments(new Object[] { 20L });
-        return adapter;
-    }
-
-    @Bean
-    public CallableTaskletAdapter callableTaskletAdapter() {
-        var adapter = new CallableTaskletAdapter();
-        adapter.setCallable(() -> {
-            log.info("Executing background task...");
-            return RepeatStatus.FINISHED;
-        });
-        return adapter;
-    }
-
-    @Bean
-    public SystemCommandTasklet systemCommandTasklet() {
-        var adapter = new SystemCommandTasklet();
-        adapter.setCommand("ls");
-        adapter.setTimeout(2_000);
-        adapter.setWorkingDirectory("/Users/lukas");
-        adapter.setEnvironmentParams(new String[] { "JAVA_HOME=/java" });
-        adapter.setTaskExecutor(new SimpleAsyncTaskExecutor());
-        return adapter;
-    }
-
-    @Bean
-    public Step secondStep(MethodInvokingTaskletAdapter methodInvokingTaskletAdapter) {
-        return stepBuilderFactory.get("secondStep")
-                .tasklet(methodInvokingTaskletAdapter)
-                .build();
-    }
-
     @Bean
     public ItemReader<String> itemReader() {
-        var items = new ArrayList<String>(200);
-        for (int i = 0; i < 200; i++) {
-            items.add(UUID.randomUUID().toString());
+        var items = new ArrayList<String>(20);
+        for (int i = 0; i < 20; i++) {
+            var name = i < 10 ? "#1#" : "#2#";
+            items.add(name + UUID.randomUUID().toString());
         }
         return new ListItemReader<>(items);
     }
@@ -120,76 +72,76 @@ public class BatchConfiguration {
     public ItemWriter<String> itemWriter() {
         return items -> {
             log.info("### New chunk");
-            items.forEach(System.out::println);
+            items.forEach(entry -> {
+                System.out.println(entry + " " + Thread.currentThread().getName());
+            });
         };
     }
 
     @Bean
-    public CompletionPolicy completionPolicy() {
-        var policy = new CompositeCompletionPolicy();
-        policy.setPolicies(new CompletionPolicy[] { new TimeoutTerminationPolicy(1_000), new SimpleCompletionPolicy(100)});
-        return policy;
+    public Step step() {
+        return stepBuilderFactory.get("step")
+                .<String, Future<String>>chunk(10)
+                .reader(itemReader())
+                .processor(asyncItemProcessor())
+                .writer(asyncItemWriter())
+                //.taskExecutor(new ConcurrentTaskExecutor())
+                .build();
     }
 
     @Bean
-    public Step thirdStep() {
-        return stepBuilderFactory.get("thirdStep")
-                //.<String, String>chunk(100)
-                .<String, String>chunk(completionPolicy())
+    public ItemProcessor<String, String> processor() {
+        var random = new Random();
+        return text -> {
+            var value = random.nextInt(text.startsWith("#1") ? 5_000: 10);
+            System.out.println(value);
+            Thread.sleep(value);
+            return text;
+        };
+    }
+
+    @Bean
+    public AsyncItemProcessor<String, String> asyncItemProcessor() {
+        var asyncProcessor = new AsyncItemProcessor<String, String>();
+        asyncProcessor.setDelegate(processor());
+        asyncProcessor.setTaskExecutor(new SimpleAsyncTaskExecutor());
+        return asyncProcessor;
+    }
+
+    @Bean
+    public AsyncItemWriter<String> asyncItemWriter() {
+        var asyncItemWriter = new AsyncItemWriter<String>();
+        asyncItemWriter.setDelegate(itemWriter());
+        return asyncItemWriter;
+    }
+
+    @Bean
+    public Step step2() {
+        return stepBuilderFactory.get("step2")
+                .<String, String>chunk(10)
                 .reader(itemReader())
                 .writer(itemWriter())
+                //.taskExecutor(new ConcurrentTaskExecutor())
                 .build();
     }
 
     @Bean
-    public DefaultJobParametersValidator defaultJobParametersValidator() {
-        var validator = new DefaultJobParametersValidator();
-        validator.setRequiredKeys(new String[] {"fileName"});
-        validator.setOptionalKeys(new String[] {"run.id", "executionDate"});
-        return validator;
-    }
-
-    @Bean
-    public CompositeJobParametersValidator validators() {
-        var validator = new CompositeJobParametersValidator();
-        validator.setValidators(List.of(defaultJobParametersValidator(), new FileNameValidator()));
-        return validator;
-    }
-
-    @Bean
-    public Flow processingFlow(Step firstStep, Step secondStep, Step thirdStep) {
-        return new FlowBuilder<Flow>("processingFlow")
-                .start(firstStep)
-                .next(secondStep)
-                .next(thirdStep)
+    public Job firstJob(Step step, Step step2) {
+        var step2Flow = new FlowBuilder<Flow>("step2Flow")
+                .start(step2)
                 .build();
-    }
 
-    @Bean
-    public Step fourthStep(Flow processingFlow, JobExplorer jobExplorer) {
-        return stepBuilderFactory.get("fourthStep")
-                //.job(custom_custom)
-                .tasklet(new JobStatusExplorer(jobExplorer))
-                //.flow(processingFlow)
+        var flow = new FlowBuilder<Flow>("flow")
+                .start(step)
+                .split(new SimpleAsyncTaskExecutor())
+                .add(step2Flow)
                 .build();
-    }
 
-    @Bean
-    public Job firstJob(Step fourthStep, Flow processingFlow) {
         return jobBuilderFactory.get("firstJob2")
-                .validator(validators())
-                //.incrementer(new RunIdIncrementer())
                 .incrementer(new ExecutionDateIncrementer())
-                .listener(new JobExecutionLogger())
-                .start(fourthStep)
-                //.next(new CustomDecider())
-                //.on(ExitStatus.FAILED.getExitDescription()).to(processingFlow)
-                //.next(someStep)
+                .start(step)
+                //.end()
                 .build();
-
-                //.start(fourthStep)
-                //.build();
     }
-
 
 }

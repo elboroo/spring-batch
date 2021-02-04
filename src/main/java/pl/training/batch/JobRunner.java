@@ -23,7 +23,7 @@ public class JobRunner {
     private final Job firstJob;
     private final JobExplorer jobExplorer;
 
-    @Scheduled(fixedRate = 10_000)
+    //@Scheduled(fixedRate = 10_000)
     public void run() throws Exception {
         var properties = new Properties();
         properties.setProperty("fileName", "data.txt");
