@@ -179,15 +179,13 @@ public class BatchConfiguration {
     public DelimitedLineTokenizer customerTokenizer() {
         var tokenizer = new DelimitedLineTokenizer();
         tokenizer.setNames("prefix","firstName", "lastName", "address");
-        tokenizer.setIncludedFields(1, 2, 3);
         return tokenizer;
     }
 
     @Bean
     public DelimitedLineTokenizer transactionTokenizer() {
         var tokenizer = new DelimitedLineTokenizer();
-        tokenizer.setNames("prefix","accountNumber", "timestamp", "amount");
-     //   tokenizer.setIncludedFields(1, 2, 3);
+        tokenizer.setNames("prefix", "number", "timestamp", "amount");
         return tokenizer;
     }
 
@@ -195,13 +193,14 @@ public class BatchConfiguration {
     public PatternMatchingCompositeLineMapper lineMapper() {
         var lineTokenizers = new HashMap<String, LineTokenizer>();
         lineTokenizers.put("c*", customerTokenizer());
-    //    lineTokenizers.put("t*", transactionTokenizer());
+        lineTokenizers.put("t*", transactionTokenizer());
 
         Map<String, FieldSetMapper> mappers = new HashMap<>();
         var customerMapper = new BeanWrapperFieldSetMapper<Customer>();
         customerMapper.setTargetType(Customer.class);
+        customerMapper.setStrict(false);
         mappers.put("c*", customerMapper);
-     //   mappers.put("t*", new TransactionMapper());
+        mappers.put("t*", new TransactionMapper());
 
         PatternMatchingCompositeLineMapper patterMatchingMapper = new PatternMatchingCompositeLineMapper();
         patterMatchingMapper.setTokenizers(lineTokenizers);
